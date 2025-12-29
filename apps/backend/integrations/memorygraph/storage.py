@@ -15,6 +15,65 @@ from .relationships import infer_relationships
 
 logger = logging.getLogger(__name__)
 
+# Default importance scores by memory type
+FALLBACK_IMPORTANCE = 0.7  # Used when type not in DEFAULT_IMPORTANCE
+DEFAULT_IMPORTANCE = {
+    "problem": 0.7,
+    "error": 0.8,
+    "solution": 0.8,
+    "code_pattern": 0.6,
+}
+
+
+async def _store_memories(
+    memories: list[dict],
+    client: MemoryGraphClient,
+    project_tags: list[str],
+    memory_label: str,
+) -> list[dict]:
+    """
+    Store a list of memories to MemoryGraph.
+
+    Does not mutate the input memories - creates copies with added IDs.
+
+    Args:
+        memories: List of memory dicts to store
+        client: MemoryGraphClient instance
+        project_tags: Tags to add to each memory
+        memory_label: Label for logging (e.g., "problem", "solution")
+
+    Returns:
+        List of successfully stored memories with IDs added
+    """
+    stored = []
+    for memory in memories:
+        try:
+            # Merge tags without mutating original
+            original_tags = memory.get("tags", [])
+            merged_tags = list(set(original_tags + project_tags))
+
+            memory_type = memory["type"]
+            default_importance = DEFAULT_IMPORTANCE.get(memory_type, FALLBACK_IMPORTANCE)
+
+            memory_id = await client.store(
+                memory_type=memory_type,
+                title=memory["title"],
+                content=memory["content"],
+                tags=merged_tags,
+                importance=memory.get("importance", default_importance),
+            )
+
+            if memory_id:
+                # Create new dict with ID instead of mutating original
+                stored_memory = {**memory, "id": memory_id, "tags": merged_tags}
+                stored.append(stored_memory)
+                logger.debug(f"Stored {memory_label}: {memory['title']}")
+        except Exception as e:
+            logger.warning(f"Failed to store {memory_label} '{memory['title']}': {e}")
+            continue
+
+    return stored
+
 
 async def save_to_memorygraph(session_output: dict, project_dir: Path) -> None:
     """
@@ -61,71 +120,16 @@ async def save_to_memorygraph(session_output: dict, project_dir: Path) -> None:
             f"{len(patterns)} patterns"
         )
 
-        # Store problems
-        stored_problems = []
-        for problem in problems:
-            try:
-                # Add project tags
-                problem["tags"] = list(set(problem.get("tags", []) + project_tags))
-
-                memory_id = await client.store(
-                    memory_type=problem["type"],
-                    title=problem["title"],
-                    content=problem["content"],
-                    tags=problem["tags"],
-                    importance=problem.get("importance", 0.7),
-                )
-
-                if memory_id:
-                    problem["id"] = memory_id
-                    stored_problems.append(problem)
-                    logger.debug(f"Stored problem: {problem['title']}")
-            except Exception as e:
-                logger.warning(f"Failed to store problem '{problem['title']}': {e}")
-                continue
-
-        # Store solutions
-        stored_solutions = []
-        for solution in solutions:
-            try:
-                # Add project tags
-                solution["tags"] = list(set(solution.get("tags", []) + project_tags))
-
-                memory_id = await client.store(
-                    memory_type=solution["type"],
-                    title=solution["title"],
-                    content=solution["content"],
-                    tags=solution["tags"],
-                    importance=solution.get("importance", 0.8),
-                )
-
-                if memory_id:
-                    solution["id"] = memory_id
-                    stored_solutions.append(solution)
-                    logger.debug(f"Stored solution: {solution['title']}")
-            except Exception as e:
-                logger.warning(f"Failed to store solution '{solution['title']}': {e}")
-                continue
-
-        # Store patterns
-        for pattern in patterns:
-            try:
-                # Add project tags
-                pattern["tags"] = list(set(pattern.get("tags", []) + project_tags))
-
-                memory_id = await client.store(
-                    memory_type=pattern["type"],
-                    title=pattern["title"],
-                    content=pattern["content"],
-                    tags=pattern["tags"],
-                    importance=pattern.get("importance", 0.6),
-                )
-
-                if memory_id:
-                    logger.debug(f"Stored pattern: {pattern['title']}")
-            except Exception as e:
-                logger.warning(f"Failed to store pattern '{pattern['title']}': {e}")
-                continue
+        # Store all memory types using helper function
+        stored_problems = await _store_memories(
+            problems, client, project_tags, "problem"
+        )
+        stored_solutions = await _store_memories(
+            solutions, client, project_tags, "solution"
+        )
+        stored_patterns = await _store_memories(
+            patterns, client, project_tags, "pattern"
+        )
 
         # Create relationships between problems and solutions
         if stored_problems and stored_solutions:
@@ -138,9 +142,9 @@ async def save_to_memorygraph(session_output: dict, project_dir: Path) -> None:
             except Exception as e:
                 logger.warning(f"Failed to create relationships: {e}")
 
-        logger.info(
+        logger.debug(
             f"Successfully stored session insights: {len(stored_problems)} problems, "
-            f"{len(stored_solutions)} solutions, {len(patterns)} patterns"
+            f"{len(stored_solutions)} solutions, {len(stored_patterns)} patterns"
         )
 
     except Exception as e:

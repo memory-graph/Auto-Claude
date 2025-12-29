@@ -152,6 +152,7 @@ if is_memorygraph_enabled():
 | `MEMORYGRAPH_ENABLED` | `false` | Enable/disable MemoryGraph integration |
 | `MEMORYGRAPH_BACKEND` | `sqlite` | Backend to use (sqlite, neo4j, falkordb, etc.) |
 | `MEMORYGRAPH_PROJECT_SCOPED` | `true` | Enable cross-spec learning |
+| `MEMORYGRAPH_TIMEOUT` | `10.0` | Timeout in seconds for MCP calls |
 
 ## Testing
 
@@ -163,16 +164,18 @@ python3 -m pytest tests/integrations/memorygraph/ -v
 ```
 
 **Test Coverage:**
-- MCP Client: 18 tests ✅ (including UUID support, timeout config, process cleanup)
+- MCP Client: 20 tests ✅ (including UUID support, timeout config, process cleanup)
 - Context Retrieval: 7 tests ✅
 - Context Formatting: 12 tests ✅
-- Insight Extraction: 20 tests ✅
+- Insight Extraction: 18 tests ✅
 - Relationship Inference: 5 tests ✅
 - Storage Integration: 6 tests ✅
+- Response Parser: 26 tests ✅
+- Live Integration: 6 tests ✅
 
 ### Total
 
-68 tests passing
+103 tests passing
 
 ## Integration with memory_manager.py
 
@@ -250,9 +253,15 @@ apps/backend/integrations/memorygraph/
 └── README.md           # This file
 
 tests/integrations/memorygraph/
-├── test_extractor.py    # 18 tests for insight extraction
-├── test_relationships.py # 5 tests for relationship inference
-└── test_storage.py      # 6 tests for storage integration
+├── conftest.py              # Test fixtures (cleanup)
+├── test_client.py           # 20 tests for MCP client
+├── test_context.py          # 7 tests for context retrieval
+├── test_extractor.py        # 18 tests for insight extraction
+├── test_formatting.py       # 12 tests for context formatting
+├── test_integration_live.py # 6 live integration tests
+├── test_parser.py           # 26 tests for response parsing
+├── test_relationships.py    # 5 tests for relationship inference
+└── test_storage.py          # 6 tests for storage integration
 ```
 
 ## Design Principles

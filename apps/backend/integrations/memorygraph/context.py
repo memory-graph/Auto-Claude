@@ -13,8 +13,15 @@ from .formatting import format_context
 
 logger = logging.getLogger(__name__)
 
+# Context retrieval limits
+MAX_FILES_IN_QUERY = 3  # Limit files to avoid overly long queries
+DEFAULT_RECALL_LIMIT = 5  # Default number of memories to recall
 
-async def get_context_for_subtask(subtask: dict, project_dir: Path) -> str:
+
+async def get_context_for_subtask(
+    subtask: dict,
+    project_dir: Path,  # Reserved for future project-scoped queries
+) -> str:
     """
     Get relevant memory context for a subtask.
 
@@ -30,6 +37,7 @@ async def get_context_for_subtask(subtask: dict, project_dir: Path) -> str:
         Formatted markdown string for prompt injection, or empty string
         if no relevant context found or MemoryGraph unavailable.
     """
+    _ = project_dir  # Reserved for future project-scoped queries
     # Build query from subtask description
     query = subtask.get("description", "")
     if not query:
@@ -40,7 +48,7 @@ async def get_context_for_subtask(subtask: dict, project_dir: Path) -> str:
     files = subtask.get("files", [])
     if files:
         # Add file names to query (not full paths)
-        file_names = [Path(f).name for f in files[:3]]  # Limit to avoid too long
+        file_names = [Path(f).name for f in files[:MAX_FILES_IN_QUERY]]
         query = f"{query} {' '.join(file_names)}"
 
     logger.debug(f"Retrieving MemoryGraph context for: {query[:100]}")
@@ -48,7 +56,7 @@ async def get_context_for_subtask(subtask: dict, project_dir: Path) -> str:
     # Get memories from MemoryGraph (with graceful error handling)
     client = MemoryGraphClient()
     try:
-        memories = await client.recall(query, limit=5)
+        memories = await client.recall(query, limit=DEFAULT_RECALL_LIMIT)
     except Exception as e:
         logger.debug(f"MemoryGraph recall failed: {e}")
         return ""

@@ -10,6 +10,10 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 
+# Default timeout for MemoryGraph MCP calls (seconds)
+DEFAULT_TIMEOUT = 10.0
+
+
 @dataclass
 class MemoryGraphConfig:
     """Configuration for MemoryGraph integration."""
@@ -17,6 +21,7 @@ class MemoryGraphConfig:
     enabled: bool = False
     backend: str = "sqlite"
     project_scoped: bool = True
+    timeout: float = DEFAULT_TIMEOUT
 
     @classmethod
     def from_env(cls) -> "MemoryGraphConfig":
@@ -31,7 +36,18 @@ class MemoryGraphConfig:
         ).lower()
         project_scoped = project_scoped_str in ("true", "1", "yes")
 
-        return cls(enabled=enabled, backend=backend, project_scoped=project_scoped)
+        timeout_str = os.environ.get("MEMORYGRAPH_TIMEOUT", str(DEFAULT_TIMEOUT))
+        try:
+            timeout = float(timeout_str)
+        except ValueError:
+            timeout = DEFAULT_TIMEOUT
+
+        return cls(
+            enabled=enabled,
+            backend=backend,
+            project_scoped=project_scoped,
+            timeout=timeout,
+        )
 
 
 @lru_cache(maxsize=1)
@@ -66,4 +82,15 @@ def get_memorygraph_config() -> dict:
         "enabled": config.enabled,
         "backend": config.backend,
         "project_scoped": config.project_scoped,
+        "timeout": config.timeout,
     }
+
+
+def get_memorygraph_timeout() -> float:
+    """
+    Get configured MemoryGraph timeout.
+
+    Returns:
+        Timeout in seconds (default: 10.0)
+    """
+    return _get_cached_config().timeout

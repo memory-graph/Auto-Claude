@@ -36,6 +36,9 @@ logger = logging.getLogger(__name__)
 # Track background tasks to prevent silent failures and enable cleanup
 _background_tasks: set[asyncio.Task] = set()
 
+# Threshold for warning about task accumulation
+TASK_ACCUMULATION_WARNING_THRESHOLD = 10
+
 
 def _task_done_callback(task: asyncio.Task) -> None:
     """
@@ -495,6 +498,14 @@ async def save_session_memory(
     # PARALLEL: Fire-and-forget save to MemoryGraph (if enabled)
     # This runs in the background and doesn't block the main flow
     if is_memorygraph_enabled():
+        # Check for task accumulation before scheduling
+        pending_count = get_pending_task_count()
+        if pending_count > TASK_ACCUMULATION_WARNING_THRESHOLD:
+            logger.warning(
+                f"High background task accumulation: {pending_count} pending tasks. "
+                "MemoryGraph server may be slow or unresponsive."
+            )
+
         if is_debug_enabled():
             debug("memory", "Scheduling PARALLEL save to MemoryGraph")
         # Create tracked background task with cleanup callback

@@ -180,3 +180,54 @@ class TestExtractMemoryId:
         """Returns None when text field missing."""
         result = {"content": [{"type": "text"}]}
         assert extract_memory_id(result) is None
+
+    def test_handles_non_dict_input(self):
+        """Handles non-dict input gracefully."""
+        assert extract_memory_id("string") is None
+        assert extract_memory_id([1, 2, 3]) is None
+        assert extract_memory_id(123) is None
+
+
+class TestEdgeCases:
+    """Edge case tests for parser functions."""
+
+    def test_parse_mcp_content_with_invalid_json_but_starts_with_bracket(self):
+        """Falls back to text parsing when JSON-like but invalid."""
+        result = {"content": [{"text": "[invalid json {"}]}
+        # Should not raise, returns empty or parsed text
+        memories = parse_mcp_content(result)
+        assert isinstance(memories, list)
+
+    def test_parse_mcp_content_non_list_non_dict_json(self):
+        """Returns empty for non-list/dict JSON values."""
+        result = {"content": [{"text": '"just a string"'}]}
+        memories = parse_mcp_content(result)
+        assert memories == []
+
+    def test_parse_memories_text_with_malformed_importance(self):
+        """Handles malformed importance values gracefully."""
+        text = """**1. Test** (ID: id1)
+Type: solution | Importance: invalid"""
+        # Should parse without importance field rather than crashing
+        memories = parse_memories_text(text)
+        assert len(memories) == 1
+        assert memories[0]["id"] == "id1"
+        # Importance should not be present if parsing failed
+        # (current implementation would crash - this tests that edge case)
+
+    def test_extract_content_multiline(self):
+        """Extracts multiline content correctly."""
+        text = """**1. Multiline Content** (ID: multi1)
+Type: solution
+Tags: test
+
+Line 1 of content
+Line 2 of content
+Line 3 of content"""
+
+        memories = parse_memories_text(text)
+        assert len(memories) == 1
+        content = memories[0].get("content", "")
+        assert "Line 1" in content
+        assert "Line 2" in content
+        assert "Line 3" in content

@@ -376,13 +376,53 @@ NPE on login"""
     @pytest.mark.asyncio
     async def test_configurable_timeout(self):
         """Client accepts configurable timeout."""
-        # Default timeout
-        client1 = MemoryGraphClient()
-        assert client1._timeout == 10.0
+        # Custom timeout overrides default
+        client = MemoryGraphClient(timeout=30.0)
+        assert client._timeout == 30.0
 
-        # Custom timeout
-        client2 = MemoryGraphClient(timeout=30.0)
-        assert client2._timeout == 30.0
+    @pytest.mark.asyncio
+    async def test_timeout_from_env_var(self):
+        """Client reads timeout from MEMORYGRAPH_TIMEOUT env var."""
+        import os
+
+        from integrations.memorygraph import clear_config_cache
+
+        # Set env var
+        original = os.environ.get("MEMORYGRAPH_TIMEOUT")
+        try:
+            os.environ["MEMORYGRAPH_TIMEOUT"] = "25.0"
+            clear_config_cache()
+
+            client = MemoryGraphClient()
+            assert client._timeout == 25.0
+        finally:
+            # Restore original
+            if original is None:
+                os.environ.pop("MEMORYGRAPH_TIMEOUT", None)
+            else:
+                os.environ["MEMORYGRAPH_TIMEOUT"] = original
+            clear_config_cache()
+
+    @pytest.mark.asyncio
+    async def test_default_timeout_when_no_env_var(self):
+        """Client uses default 10.0s timeout when env var not set."""
+        import os
+
+        from integrations.memorygraph import clear_config_cache
+
+        # Ensure env var is not set
+        original = os.environ.get("MEMORYGRAPH_TIMEOUT")
+        try:
+            os.environ.pop("MEMORYGRAPH_TIMEOUT", None)
+            clear_config_cache()
+
+            client = MemoryGraphClient()
+            assert client._timeout == 10.0
+        finally:
+            # Restore original
+            if original is not None:
+                os.environ["MEMORYGRAPH_TIMEOUT"] = original
+            clear_config_cache()
 
     @pytest.mark.asyncio
     async def test_parses_uuid_with_hyphens_in_text(self):

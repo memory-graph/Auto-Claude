@@ -10,9 +10,15 @@ import asyncio
 import json
 import logging
 
+from .config import get_memorygraph_timeout
 from .parser import extract_memory_id, parse_mcp_content
 
 logger = logging.getLogger(__name__)
+
+# Client defaults
+DEFAULT_RECALL_LIMIT = 5
+DEFAULT_STORE_IMPORTANCE = 0.7  # Default importance for store() calls
+PROCESS_CLEANUP_TIMEOUT = 1.0  # Timeout for subprocess cleanup (seconds)
 
 
 class MemoryGraphClient:
@@ -26,17 +32,16 @@ class MemoryGraphClient:
     exceptions.
     """
 
-    # Default timeout for MCP calls (seconds)
-    DEFAULT_TIMEOUT = 10.0
-
     def __init__(self, timeout: float | None = None):
         """Initialize the client.
 
         Args:
-            timeout: Timeout in seconds for MCP calls (default: 10.0)
+            timeout: Timeout in seconds for MCP calls.
+                     Defaults to MEMORYGRAPH_TIMEOUT env var or 10.0s.
         """
         self._request_id = 0
-        self._timeout = timeout or self.DEFAULT_TIMEOUT
+        # Use provided timeout, or get from config, or use default
+        self._timeout = timeout if timeout is not None else get_memorygraph_timeout()
 
     def _next_id(self) -> int:
         """Get next request ID."""
@@ -136,14 +141,14 @@ class MemoryGraphClient:
             if proc is not None:
                 try:
                     proc.terminate()
-                    await asyncio.wait_for(proc.wait(), timeout=1.0)
+                    await asyncio.wait_for(proc.wait(), timeout=PROCESS_CLEANUP_TIMEOUT)
                 except (ProcessLookupError, asyncio.TimeoutError):
                     try:
                         proc.kill()
                     except ProcessLookupError:
                         pass
 
-    async def recall(self, query: str, limit: int = 5) -> list[dict]:
+    async def recall(self, query: str, limit: int = DEFAULT_RECALL_LIMIT) -> list[dict]:
         """
         Call recall_memories MCP tool.
 
@@ -166,7 +171,7 @@ class MemoryGraphClient:
         title: str,
         content: str,
         tags: list[str] | None = None,
-        importance: float = 0.7,
+        importance: float = DEFAULT_STORE_IMPORTANCE,
     ) -> str | None:
         """
         Call store_memory MCP tool.

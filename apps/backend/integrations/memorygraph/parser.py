@@ -115,7 +115,10 @@ def _parse_memory_section(section: str) -> dict:
     # Extract importance
     importance_match = re.search(r"Importance:\s*([\d.]+)", section)
     if importance_match:
-        memory["importance"] = float(importance_match.group(1))
+        try:
+            memory["importance"] = float(importance_match.group(1))
+        except ValueError:
+            pass  # Skip if importance value is malformed
 
     # Extract tags
     tags_match = re.search(r"Tags:\s*([^\n]+)", section)

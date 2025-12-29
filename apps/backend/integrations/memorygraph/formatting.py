@@ -5,6 +5,14 @@ Context Formatting for MemoryGraph
 Format memories into readable context for agent prompts.
 """
 
+# Formatting limits to avoid bloating prompts
+MAX_SOLUTIONS = 3
+MAX_PATTERNS = 2
+MAX_GOTCHAS = 2
+SOLUTION_CONTENT_MAX_LEN = 200
+PATTERN_CONTENT_MAX_LEN = 150
+GOTCHA_CONTENT_MAX_LEN = 150
+
 
 def format_context(memories: list[dict], solutions: list[dict]) -> str:
     """
@@ -25,35 +33,35 @@ def format_context(memories: list[dict], solutions: list[dict]) -> str:
     sections.append("_Retrieved from MemoryGraph for this task:_\n")
 
     # Combine solutions from memories and related solutions parameter
-    # Use dict to deduplicate by ID
+    # Use dict to deduplicate by ID (use str keys for type consistency)
     all_solutions: dict[str, dict] = {}
 
     # Add solutions from memories
     for m in memories:
         if m.get("type") == "solution":
-            mem_id = m.get("id", id(m))  # Use object id as fallback
+            mem_id = str(m.get("id", id(m)))  # Use object id as fallback, convert to str
             all_solutions[mem_id] = m
 
     # Add related solutions (these solved previously encountered problems)
     for s in solutions:
-        mem_id = s.get("id", id(s))
+        mem_id = str(s.get("id", id(s)))  # Convert to str for consistency
         if mem_id not in all_solutions:
             all_solutions[mem_id] = s
 
     # Format combined solutions
     if all_solutions:
         sections.append("### What's worked before\n")
-        for s in list(all_solutions.values())[:3]:  # Limit to top 3
+        for s in list(all_solutions.values())[:MAX_SOLUTIONS]:
             title = s.get("title", "Unknown")
-            content = s.get("content", "")[:200]  # Truncate long content
+            content = s.get("content", "")[:SOLUTION_CONTENT_MAX_LEN]
             sections.append(f"- **{title}**: {content}\n")
 
     # Patterns to follow
     patterns = [m for m in memories if m.get("type") == "code_pattern"]
     if patterns:
         sections.append("\n### Patterns to follow\n")
-        for p in patterns[:2]:  # Limit to top 2
-            content = p.get("content", "")[:150]
+        for p in patterns[:MAX_PATTERNS]:
+            content = p.get("content", "")[:PATTERN_CONTENT_MAX_LEN]
             sections.append(f"- {content}\n")
 
     # Gotchas to avoid
@@ -64,9 +72,9 @@ def format_context(memories: list[dict], solutions: list[dict]) -> str:
     ]
     if problems:
         sections.append("\n### Watch out for\n")
-        for g in problems[:2]:  # Limit to top 2
+        for g in problems[:MAX_GOTCHAS]:
             title = g.get("title", "Unknown issue")
-            content = g.get("content", "")[:150]
+            content = g.get("content", "")[:GOTCHA_CONTENT_MAX_LEN]
             sections.append(f"- **{title}**: {content}\n")
 
     # Only return if we have actual content beyond the header

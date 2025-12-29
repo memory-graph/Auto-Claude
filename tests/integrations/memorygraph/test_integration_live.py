@@ -132,6 +132,9 @@ class TestLiveMemoryGraphClient:
 
         print(f"Created SOLVES relationship: {solution_id} -> {problem_id}")
 
+        # Give server time to index the relationship
+        await asyncio.sleep(INDEXING_DELAY_SHORT)
+
         # Verify relationship by getting related memories
         related = await client.get_related(problem_id, types=["SOLVES"])
 

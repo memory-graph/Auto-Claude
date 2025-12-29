@@ -1,6 +1,5 @@
 """Tests for MCP response parser."""
 
-import pytest
 from integrations.memorygraph.parser import (
     extract_memory_id,
     parse_mcp_content,
